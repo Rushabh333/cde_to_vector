@@ -1,0 +1,22 @@
+processing:
+  max_sequence_length: 128
+  normalization:
+    target_range: [0, 1]
+    preserve_aspect_ratio: true
+  filters:
+    cut_colors: ["#FF00FF", "Magenta"]
+    crease_colors: ["#00FFFF", "Cyan"]
+
+paths:
+  raw_data: "./data/raw"
+  interim_data: "./data/interim"
+  processed_data: "./data/processed"
+
+inkscape:
+  min_version: "1.2"
+  export_type: "svg"
+  export_plain_svg: true
+
+logging:
+  level: "INFO"
+  log_file: "./pipeline.log"

@@ -1,0 +1,7 @@
+numpy>=1.21.0
+shapely>=1.8.0
+svgpathtools>=1.5.1
+networkx>=2.6.0
+torch>=1.10.0
+pyyaml>=6.0
+lxml>=4.9.0
