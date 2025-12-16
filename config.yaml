@@ -20,3 +20,20 @@ inkscape:
 logging:
   level: "INFO"
   log_file: "./pipeline.log"
+
+# Raster processing configuration
+raster:
+  enabled: true
+  encoder_type: "resnet"  # Using ResNet-50 encoder
+  pretrained: true
+  latent_dim: 512
+  image_size: [256, 256]
+  device: "cpu"  # Change to "cuda" if GPU available
+
+# Unified pipeline settings
+unified:
+  mode: "independent"  # 'independent' or 'fused' (future)
+  auto_detect_type: true
+  supported_vector_formats: [".cdr", ".svg", ".ai", ".eps"]
+  supported_raster_formats: [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]
+

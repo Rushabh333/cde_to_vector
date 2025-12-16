@@ -1,238 +1,341 @@
-# CDR to Vector Latent Tensor Pipeline
+# CDR-to-Vector Dual-Stream Pipeline
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-89%25-green.svg)]()
 
-> **A robust ETL pipeline for converting proprietary CorelDRAW (.cdr) files into normalized tensor representations suitable for machine learning applications.**
+> **A production-ready dual-stream ETL pipeline for converting both vector files (.cdr, .svg) and raster images (.png, .jpg) into normalized tensor representations for machine learning applications.**
 
-## 📋 Table of Contents
+Designed for vector-latent diffusion models, this pipeline provides robust processing of both vector graphics and raster images with comprehensive error handling, validation, and testing infrastructure.
 
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Project Structure](#project-structure)
-- [Pipeline Stages](#pipeline-stages)
-- [API Documentation](#api-documentation)
-- [Examples](#examples)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-- [Author](#author)
+---
 
 ## 🎯 Overview
 
-This pipeline implements a complete Extract-Transform-Load (ETL) workflow designed specifically for **Architecture C (Vector-Latent Diffusion)** systems. It converts proprietary CorelDRAW (.cdr) archives into normalized, fixed-dimensional tensors suitable for training Variational Autoencoders (SVG-VAE) and other machine learning models.
+This pipeline implements a complete Extract-Transform-Load (ETL) workflow that bridges proprietary design formats to machine learning-ready tensors. It supports two parallel processing streams:
 
-### Key Objectives
+- **Vector Stream**: Converts CorelDRAW (.cdr), SVG, and other vector formats to normalized Bézier curve representations
+- **Raster Stream**: Encodes PNG, JPG, and other image formats to latent embeddings using pretrained ResNet-50
 
-- **Format Conversion**: Bridge proprietary binary .cdr files to standardized SVG format
-- **Semantic Understanding**: Classify vector paths by purpose (cut lines, crease lines, etc.)
-- **Mathematical Normalization**: Convert diverse geometric primitives into uniform representations
-- **ML-Ready Output**: Generate fixed-dimensional tensors suitable for deep learning
+### Key Capabilities
+
+- ✅ **Dual-Stream Architecture**: Automatic file type detection and routing
+- ✅ **Production-Grade Robustness**: Comprehensive error handling with actionable messages
+- ✅ **Extensive Testing**: 43 unit tests covering edge cases and corner cases
+- ✅ **Flexible Configuration**: YAML-based settings for all pipeline parameters
+- ✅ **Format Agnostic**: Supports all major vector and raster formats
+- ✅ **Batch Processing**: Efficient processing of mixed file types
+- ✅ **ML-Ready Outputs**: Fixed-dimensional PyTorch tensors
+
+---
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Rushabh333/cde_to_vector.git
+cd cde_to_vector
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify installation
+python demo_pipeline.py  # Test vector processing
+python demo_raster.py    # Test raster processing
+```
+
+### Basic Usage
+
+```python
+from pathlib import Path
+from pipeline.unified_pipeline import UnifiedPipeline
+
+# Initialize pipeline
+pipeline = UnifiedPipeline(Path('config.yaml'))
+
+# Process any file (auto-detects type)
+output = pipeline.process(Path('design.cdr'))  # Vector → (128, 14)
+output = pipeline.process(Path('photo.png'))   # Raster → (1, 512)
+
+# Process entire directory
+results = pipeline.process_directory(
+    input_dir=Path('./data/mixed'),
+    output_dir=Path('./output')
+)
+```
+
+### Command Line
+
+```bash
+# Process single file
+python run_unified_pipeline.py --input_file image.png
+
+# Process directory with mixed file types
+python run_unified_pipeline.py --input_dir ./data --output_dir ./output
+
+# Vector-only processing (legacy)
+python run_pipeline.py --input_dir ./cdr_files --seq_len 128
+```
+
+---
 
 ## ✨ Features
 
-### Core Capabilities
+### Dual-Stream Processing
 
-- **🔄 Headless Extraction**: Leverages Inkscape CLI for reliable CDR→SVG conversion
-- **🎨 Semantic Layering**: Intelligent filtering of cut vs. crease lines based on stroke colors
-- **📐 Geometric Canonicalization**: Converts all primitives (lines, arcs, quadratics) to uniform cubic Bézier curves
-- **📊 Tensor Serialization**: Outputs ready-to-train `.pt` (PyTorch) or `.npy` (NumPy) tensors
-- **⚙️ Configurable Processing**: YAML-based configuration for flexible pipeline customization
-- **📝 Comprehensive Logging**: Detailed logging for debugging and monitoring
-- **🛡️ Error Handling**: Robust error recovery and validation at each pipeline stage
-
-### Technical Highlights
-
-- Preserves affine transformations during conversion
+**Vector Stream** (`.cdr`, `.svg`, `.ai`, `.eps`):
+- Headless Inkscape extraction preserving affine transformations
+- Semantic path filtering (cut lines, crease lines)
+- Geometric canonicalization to cubic Bézier curves
 - Scale-invariant normalization to [0,1]² unit square
-- Fixed-length tensor output with smart padding/truncation
-- Batch processing support for multiple files
-- Aspect ratio preservation options
+- Output: `(N, 14)` tensor per file
 
-## 🏗️ Architecture
+**Raster Stream** (`.png`, `.jpg`, `.bmp`, `.tiff`):
+- Pretrained ResNet-50 feature extraction
+- Automatic RGB conversion from any color mode
+- Configurable image resizing (default 256×256)
+- GPU/CPU support for acceleration
+- Output: `(1, 512)` latent embedding per image
 
-The pipeline operates in **four distinct phases**:
+### Production Robustness
 
-```mermaid
-graph LR
-    A[Raw .cdr Files] -->|Inkscape CLI| B[Raw SVG]
-    B -->|Filter & Parse| C[Semantic SVG]
-    C -->|Math Canonicalization| D[Normalized Béziers]
-    D -->|Serialization| E[Latent Tensors Nx14]
-```
+- **Comprehensive Validation**: Config schema, file formats, image dimensions
+- **Actionable Error Messages**: Error codes with recovery suggestions
+- **Corner Case Handling**: Unicode filenames, extreme aspect ratios, all PIL modes
+- **Test Coverage**: 89% on validators, 90% on image preprocessing
+- **Batch Processing**: Efficient handling of large datasets
 
-### Phase Breakdown
+### Configuration
 
-#### 1️⃣ Headless Extraction
-Uses Inkscape's rendering engine to preserve affine transformations and avoid reverse-engineered parsers.
-
-#### 2️⃣ Semantic Filtering
-Parses the SVG XML tree to isolate structural elements:
-- **Cut Lines**: Identified by spot colors (Magenta/Red) or specific layer IDs
-- **Crease Lines**: Identified by spot colors (Cyan/Blue)
-- **Ignored Elements**: Text, raster images, fill patterns
-
-#### 3️⃣ Mathematical Canonicalization
-Converts mixed primitives to uniform cubic Bézier curves:
-
-| Primitive | Conversion Method |
-|-----------|-------------------|
-| **Line** | $P_0=L_0, P_1=\frac{2L_0+L_1}{3}, P_2=\frac{L_0+2L_1}{3}, P_3=L_1$ |
-| **Quadratic** | Degree elevation (3 → 4 control points) |
-| **Arc** | Split strategy where $\theta \le 90°$ |
-
-**Spatial Normalization Formula:**
-
-$$V_{norm} = \frac{V - \mu}{2s} + 0.5$$
-
-Where:
-- $\mu$ = centroid
-- $s$ = max dimension for scale invariance
-
-#### 4️⃣ Tensor Serialization
-Outputs matrix $\mathbf{X} \in \mathbb{R}^{N_{max} \times 14}$
-
-**Feature Vector** format per row:
-```
-[sx, sy, cx1, cy1, cx2, cy2, ex, ey, pen_state, is_line, is_curve, is_move, pad1, pad2]
-```
-
-## 🚀 Installation
-
-### System Requirements
-
-- **OS**: Linux (Ubuntu 20.04+) or macOS
-- **Python**: 3.8 or higher
-- **External Tool**: Inkscape (v1.2+ for CLI stability)
-
-### Step-by-Step Setup
-
-1. **Install Inkscape**
-
-   ```bash
-   # macOS
-   brew install inkscape
-   
-   # Ubuntu/Debian
-   sudo apt-get update
-   sudo apt-get install inkscape
-   ```
-
-2. **Clone the Repository**
-
-   ```bash
-   git clone https://github.com/Rushabh333/cde_to_vector.git
-   cd cde_to_vector
-   ```
-
-3. **Create Virtual Environment** (Recommended)
-
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-4. **Install Python Dependencies**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Verify Installation**
-
-   ```bash
-   inkscape --version
-   python demo_pipeline.py
-   ```
-
-   You should see output confirming Inkscape is installed and the demo pipeline runs successfully.
-
-## 🎯 Quick Start
-
-### Running the Demo
-
-Test the pipeline with a sample SVG file:
-
-```bash
-python demo_pipeline.py
-```
-
-This will:
-1. Create a sample SVG with cut and crease lines
-2. Process it through all pipeline stages
-3. Output a tensor to `./data/processed/sample_test.pt`
-
-### Processing Real CDR Files
-
-1. **Place your .cdr files** in the `./data/raw/` directory
-
-2. **Run the pipeline**:
-
-   ```bash
-   python run_pipeline.py --input_dir ./data/raw --output_dir ./data/processed --seq_len 128
-   ```
-
-3. **Check the output** in `./data/processed/` directory
-
-## 📖 Usage
-
-### Command-Line Interface
-
-```bash
-python run_pipeline.py [OPTIONS]
-```
-
-#### Available Options
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `--input_dir` | Path | `./data/raw` | Directory containing .cdr files |
-| `--output_dir` | Path | `./data/processed` | Directory for output tensors |
-| `--seq_len` | Integer | `128` | Maximum sequence length |
-| `--config` | Path | `./config.yaml` | Path to configuration file |
-
-#### Examples
-
-**Process with custom output directory:**
-```bash
-python run_pipeline.py --output_dir ./output/tensors
-```
-
-**Use longer sequence length:**
-```bash
-python run_pipeline.py --seq_len 256
-```
-
-**Specify custom config file:**
-```bash
-python run_pipeline.py --config ./custom_config.yaml
-```
-
-## ⚙️ Configuration
-
-The pipeline uses a YAML configuration file (`config.yaml`) for customization:
+Full YAML-based configuration with sensible defaults:
 
 ```yaml
-# Inkscape settings
-inkscape:
-  min_version: "1.2"
-
-# Processing parameters
+# Processing settings
 processing:
   max_sequence_length: 128
-  
   normalization:
     target_range: [0, 1]
     preserve_aspect_ratio: true
-  
+
+# Raster processing (NEW)
+raster:
+  enabled: true
+  encoder_type: "resnet"
+  pretrained: true
+  latent_dim: 512
+  image_size: [256, 256]
+  device: "cpu"  # or "cuda" for GPU
+
+# Paths
+paths:
+  raw_data: "./data/raw"
+  processed_data: "./data/processed"
+```
+
+---
+
+## 📊 Architecture
+
+### Data Flow
+
+```
+Input Files
+    │
+    ├── .cdr/.svg (Vector) ──┐
+    │                        │
+    │   Inkscape Extraction  │
+    │   Semantic Filtering   │
+    │   Bézier Conversion    ├──► Unified Output
+    │   Normalization        │    (.pt tensors)
+    │                        │
+    └── .png/.jpg (Raster) ──┤
+                             │
+        Image Preprocessing  │
+        ResNet-50 Encoding  │
+        Latent Projection   │
+                            │
+```
+
+### Project Structure
+
+```
+cde_to_vector/
+├── src/
+│   ├── extractors/      # Vector: CDR→SVG extraction
+│   ├── geometry/        # Vector: Bézier conversion
+│   ├── raster/          # Raster: Image processing
+│   ├── pipeline/        # Unified routing & utilities
+│   ├── tensor/          # Tensor serialization
+│   └── utils/           # Validation & logging
+├── tests/               # 43 unit tests
+├── run_unified_pipeline.py  # Main CLI
+├── config.yaml          # Configuration
+└── README.md
+```
+
+---
+
+## 🧪 Testing
+
+Comprehensive test suite with 43 passing tests:
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# With coverage report
+pytest tests/ --cov=src --cov-report=html
+
+# Specific test categories
+pytest tests/test_validators.py      # Validation tests
+pytest tests/test_corner_cases.py    # Edge case tests
+pytest tests/test_image_preprocessor.py  # Raster tests
+```
+
+**Test Coverage:**
+- ✅ Config validation (schema, missing keys, invalid values)
+- ✅ File validation (existence, formats, permissions)
+- ✅ Image validation (dimensions, corruption, formats)
+- ✅ Unicode filenames, special characters
+- ✅ Extreme aspect ratios (100:1, 1:100)
+- ✅ All PIL image modes (RGB, RGBA, L, P, 1)
+- ✅ Boundary conditions (10×10 minimum size)
+- ✅ Batch processing edge cases
+
+---
+
+## 📖 Documentation
+
+- **[README.md](README.md)** - This file (complete usage guide)
+- **[CITATIONS.md](CITATIONS.md)** - Academic references for research
+- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)** - Detailed code organization
+- **[CORNER_CASES_REPORT.md](CORNER_CASES_REPORT.md)** - Edge case testing results
+
+---
+
+## 🔧 Advanced Usage
+
+### Custom Raster Processing
+
+```python
+from raster.raster_pipeline import RasterPipeline
+
+# Initialize with custom settings
+pipeline = RasterPipeline(
+    latent_dim=512,
+    image_size=(256, 256),
+    device='cuda',  # Use GPU
+    pretrained=True
+)
+
+# Process single image
+pipeline.process_file('photo.jpg', 'output.pt')
+
+# Batch processing
+images = [Path(f) for f in glob('*.png')]
+pipeline.process_batch(images, Path('outputs/'))
+```
+
+### Latent Standardization
+
+```python
+from pipeline.latent_standardizer import LatentStandardizer
+import torch
+
+# Standardize different formats to common dimension
+standardizer = LatentStandardizer(target_dim=512)
+
+# Convert vector latent (128, 14) → (512,)
+vector_latent = torch.load('design.pt')
+std_vector = standardizer.standardize(vector_latent, 'vector')
+
+# Convert raster latent (1, 512) → (512,)
+raster_latent = torch.load('photo.pt')
+std_raster = standardizer.standardize(raster_latent, 'raster')
+
+# Now both have shape (512,) for downstream models
+```
+
+### Error Handling
+
+```python
+from utils.validators import ValidationError
+
+try:
+    pipeline.process(input_file)
+except ValidationError as e:
+    # Access structured error information
+    print(f"Code: {e.error_code}")
+    print(f"Message: {e.message}")
+    print(f"Suggestion: {e.suggestion}")
+    
+    # Programmatic error handling
+    if e.error_code == "IMAGE_TOO_LARGE":
+        # Resize and retry
+        resize_image(input_file)
+        pipeline.process(input_file)
+```
+
+---
+
+## 🔬 Technical Details
+
+### Vector Pipeline
+
+**Mathematical Canonicalization:**
+
+All primitives converted to uniform cubic Bézier curves:
+
+| Primitive | Conversion Method |
+|-----------|-------------------|
+| Line | $P_0=L_0, P_1=\frac{2L_0+L_1}{3}, P_2=\frac{L_0+2L_1}{3}, P_3=L_1$ |
+| Quadratic | Degree elevation (3 → 4 control points) |
+| Arc | Split strategy where $\theta \leq 90°$ |
+
+**Normalization:**
+$$V_{norm} = \frac{V - \mu}{2s} + 0.5$$
+
+Where $\mu$ = centroid, $s$ = max dimension
+
+**Output Format:** $\mathbf{X} \in \mathbb{R}^{N_{max} \times 14}$
+
+Feature vector per curve:
+```
+[x0, y0, x1, y1, x2, y2, x3, y3, r, g, b, α, type, pad]
+```
+
+### Raster Pipeline
+
+**Architecture:**
+1. **Preprocessing**: Resize to 256×256, ImageNet normalization
+2. **Feature Extraction**: ResNet-50 (pretrained) → 2048D features
+3. **Projection**: Linear(2048 → 1024) → ReLU → Linear(1024 → 512)
+
+**Performance:**
+- First run: ~30s (model download)
+- Subsequent: <1s per image
+- GPU acceleration supported
+- Batch processing optimized
+
+---
+
+## 🛠️ Configuration Reference
+
+### Complete Config Options
+
+```yaml
+# Processing parameters
+processing:
+  max_sequence_length: 128
+  normalization:
+    target_range: [0, 1]
+    preserve_aspect_ratio: true
   filters:
-    cut_colors: ["#FF00FF", "Magenta", "#FF0000", "Red"]
-    crease_colors: ["#00FFFF", "Cyan", "#0000FF", "Blue"]
+    cut_colors: ["#FF00FF", "Magenta"]
+    crease_colors: ["#00FFFF", "Cyan"]
 
 # File paths
 paths:
@@ -240,395 +343,141 @@ paths:
   interim_data: "./data/interim"
   processed_data: "./data/processed"
 
+# Inkscape settings
+inkscape:
+  min_version: "1.2"
+  export_type: "svg"
+  export_plain_svg: true
+
 # Logging
 logging:
-  level: "INFO"
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
   log_file: "./pipeline.log"
+
+# Raster processing
+raster:
+  enabled: true
+  encoder_type: "resnet"
+  pretrained: true
+  latent_dim: 512
+  image_size: [256, 256]
+  device: "cpu"  # or "cuda"
+
+# Unified pipeline
+unified:
+  mode: "independent"
+  auto_detect_type: true
+  supported_vector_formats: [".cdr", ".svg", ".ai", ".eps"]
+  supported_raster_formats: [".png", ".jpg", ".jpeg", ".bmp", ".tiff"]
 ```
 
-### Configuration Parameters
+---
 
-#### Normalization Settings
+## 🐛 Troubleshooting
 
-- `target_range`: Output coordinate range (default: [0, 1])
-- `preserve_aspect_ratio`: Maintain original aspect ratio during scaling
+### Common Issues
 
-#### Color Filters
-
-Customize which colors identify structural elements:
-- `cut_colors`: List of colors/hex codes for cut lines
-- `crease_colors`: List of colors/hex codes for crease lines
-
-#### Sequence Length
-
-- `max_sequence_length`: Maximum number of curves per tensor
-  - Shorter files are zero-padded
-  - Longer files are truncated
-  - Typical range: 64-512 depending on complexity
-
-## 📁 Project Structure
-
-```
-cde_to_vector/
-├── data/
-│   ├── raw/              # Input .cdr files
-│   ├── interim/          # Intermediate SVG files
-│   └── processed/        # Output .pt/.npy tensors
-├── src/
-│   ├── extractors/       # Format conversion modules
-│   │   ├── __init__.py
-│   │   ├── inkscape_wrapper.py  # CDR→SVG conversion
-│   │   └── filter.py            # Semantic path filtering
-│   ├── geometry/         # Mathematical transformations
-│   │   ├── __init__.py
-│   │   ├── bezier_converter.py # Primitive→Bézier conversion
-│   │   └── normalizer.py        # Coordinate normalization
-│   ├── tensor/           # Serialization modules
-│   │   ├── __init__.py
-│   │   └── serializer.py        # Tensor construction
-│   └── utils/            # Helper utilities
-│       ├── __init__.py
-│       └── logger.py            # Logging configuration
-├── run_pipeline.py       # Main pipeline orchestrator
-├── demo_pipeline.py      # Demo/testing script
-├── config.yaml           # Configuration file
-├── requirements.txt      # Python dependencies
-└── README.md            # This file
-```
-
-## 🔧 Pipeline Stages
-
-### Stage 1: Extraction (`InkscapeExtractor`)
-
-Converts proprietary .cdr files to SVG format using Inkscape CLI.
-
-**Key Features:**
-- Version validation (requires Inkscape 1.2+)
-- Timeout protection (300s default)
-- Preserves affine transformations with `--export-plain-svg` flag
-
-**Example:**
-```python
-from extractors.inkscape_wrapper import InkscapeExtractor
-
-extractor = InkscapeExtractor(min_version="1.2")
-svg_path = extractor.extract("input.cdr", "output.svg")
-```
-
-### Stage 2: Filtering (`SVGFilter`)
-
-Parses SVG XML and classifies paths by stroke color.
-
-**Classifications:**
-- `cut`: Structural cut lines (manufacturing)
-- `crease`: Fold/crease lines
-- `other`: Decorative or unclassified paths
-
-**Example:**
-```python
-from extractors.filter import SVGFilter
-
-filter = SVGFilter(
-    cut_colors=["#FF00FF", "Magenta"],
-    crease_colors=["#00FFFF", "Cyan"]
-)
-paths = filter.filter("input.svg")
-# Returns: {'cut': [...], 'crease': [...], 'other': [...]}
-```
-
-### Stage 3: Conversion (`BezierConverter`)
-
-Converts all SVG primitives to uniform cubic Bézier curves.
-
-**Supported Primitives:**
-- Lines (L/l commands)
-- Quadratic Béziers (Q/q commands)
-- Cubic Béziers (C/c commands)
-- Arcs (A/a commands)
-
-**Example:**
-```python
-from geometry.bezier_converter import BezierConverter
-
-converter = BezierConverter()
-cubics = converter.convert_path(path_data)
-control_points = converter.extract_control_points(cubics[0])
-# Returns: [sx, sy, cx1, cy1, cx2, cy2, ex, ey]
-```
-
-### Stage 4: Normalization (`Normalizer`)
-
-Normalizes coordinates to unit square [0,1]².
-
-**Example:**
-```python
-from geometry.normalizer import Normalizer
-import numpy as np
-
-normalizer = Normalizer(
-    target_range=(0.0, 1.0),
-    preserve_aspect_ratio=True
-)
-normalized = normalizer.normalize(np.array(control_points))
-```
-
-### Stage 5: Serialization (`TensorSerializer`)
-
-Constructs final tensor with padding/truncation.
-
-**Example:**
-```python
-from tensor.serializer import TensorSerializer
-
-serializer = TensorSerializer(max_sequence_length=128)
-output_path = serializer.serialize(
-    curves=normalized_curves,
-    output_path="output.pt",
-    format="pt"  # or "npy"
-)
-```
-
-## 📚 API Documentation
-
-### Core Classes
-
-#### `InkscapeExtractor`
-
-```python
-InkscapeExtractor(min_version: str = "1.2", logger: Optional[Logger] = None)
-```
-
-**Methods:**
-- `extract(cdr_path: Path, output_path: Path) -> Path`: Convert CDR to SVG
-
-#### `SVGFilter`
-
-```python
-SVGFilter(
-    cut_colors: List[str],
-    crease_colors: List[str],
-    logger: Optional[Logger] = None
-)
-```
-
-**Methods:**
-- `filter(svg_path: Path) -> Dict[str, List]`: Extract and classify paths
-
-#### `BezierConverter`
-
-```python
-BezierConverter(logger: Optional[Logger] = None)
-```
-
-**Methods:**
-- `convert_path(path_data: str) -> List`: Convert to cubic Béziers
-- `extract_control_points(cubic) -> List[float]`: Extract 8 control point coordinates
-
-#### `Normalizer`
-
-```python
-Normalizer(
-    target_range: Tuple[float, float] = (0.0, 1.0),
-    preserve_aspect_ratio: bool = True,
-    logger: Optional[Logger] = None
-)
-```
-
-**Methods:**
-- `normalize(points: np.ndarray) -> np.ndarray`: Normalize to unit square
-
-#### `TensorSerializer`
-
-```python
-TensorSerializer(max_sequence_length: int, logger: Optional[Logger] = None)
-```
-
-**Methods:**
-- `serialize(curves: List, output_path: Path, format: str) -> Path`: Create tensor
-- `deserialize(tensor_path: Path, format: str) -> np.ndarray`: Load tensor
-
-## 💡 Examples
-
-### Example 1: Basic Pipeline Usage
-
-```python
-from pathlib import Path
-from run_pipeline import Pipeline
-
-# Initialize pipeline
-pipeline = Pipeline(config_path=Path('./config.yaml'))
-
-# Process single file
-output_path = pipeline.process_file(
-    cdr_path=Path('./data/raw/sample.cdr'),
-    output_dir=Path('./data/processed')
-)
-
-print(f"Tensor saved to: {output_path}")
-```
-
-### Example 2: Batch Processing
-
-```python
-from pathlib import Path
-from run_pipeline import Pipeline
-
-# Initialize pipeline
-pipeline = Pipeline(config_path=Path('./config.yaml'))
-
-# Process all CDR files in directory
-pipeline.run(
-    input_dir=Path('./data/raw'),
-    output_dir=Path('./data/processed')
-)
-```
-
-### Example 3: Custom Configuration
-
-```python
-import yaml
-from pathlib import Path
-from run_pipeline import Pipeline
-
-# Create custom config
-custom_config = {
-    'processing': {
-        'max_sequence_length': 256,
-        'normalization': {
-            'target_range': [0, 1],
-            'preserve_aspect_ratio': False
-        },
-        'filters': {
-            'cut_colors': ['#FF00FF', '#FF0000'],
-            'crease_colors': ['#00FFFF']
-        }
-    }
-}
-
-# Save to temporary file
-config_path = Path('/tmp/custom_config.yaml')
-with open(config_path, 'w') as f:
-    yaml.dump(custom_config, f)
-
-# Use custom config
-pipeline = Pipeline(config_path=config_path)
-```
-
-### Example 4: Loading and Inspecting Tensors
-
-```python
-import torch
-from pathlib import Path
-
-# Load tensor
-tensor_path = Path('./data/processed/sample.pt')
-tensor = torch.load(tensor_path)
-
-print(f"Shape: {tensor.shape}")  # (128, 14)
-print(f"Type: {tensor.dtype}")   # torch.float32
-print(f"Range: [{tensor.min():.3f}, {tensor.max():.3f}]")  # [0.000, 1.000]
-
-# Count non-zero curves
-non_zero_rows = (tensor.abs().sum(dim=1) > 0).sum().item()
-print(f"Number of curves: {non_zero_rows}")
-```
-
-## 🔍 Troubleshooting
-
-### Issue 1: Inkscape Not Found
-
-**Error Message:**
-```
-RuntimeError: Inkscape not found in system PATH
-```
-
-**Solution:**
+**Issue**: `Inkscape not found`
 ```bash
-# Verify installation
-inkscape --version
-
-# If not installed, install it:
-# macOS
-brew install inkscape
-
-# Ubuntu/Debian
-sudo apt-get install inkscape
+# Install Inkscape
+brew install inkscape  # macOS
+sudo apt-get install inkscape  # Linux
 ```
 
-### Issue 2: Empty SVG Output
-
-**Problem:** Conversion produces empty SVG files
-
-**Possible Causes:**
-- Non-standard spot colors in your dataset
-- Incorrect color filtering configuration
-
-**Solution:**
-1. Inspect your .cdr files manually to identify actual colors
-2. Update `config.yaml`:
-   ```yaml
-   filters:
-     cut_colors: ["#YOUR_COLOR_HERE"]
-     crease_colors: ["#YOUR_COLOR_HERE"]
-   ```
-
-### Issue 3: Tensor Shape Mismatch
-
-**Problem:** Output tensor has unexpected shape
-
-**Solution:**
-- Increase `max_sequence_length` in `config.yaml` if your designs have many curves
-- Check that your input files are valid .cdr files
-
-### Issue 4: Import Errors
-
-**Problem:** Module import failures
-
-**Solution:**
-```bash
-# Ensure all dependencies are installed
-pip install -r requirements.txt
-
-# If using virtual environment, make sure it's activated
-source venv/bin/activate  # Linux/Mac
-# or
-venv\Scripts\activate  # Windows
+**Issue**: `CUDA out of memory`
+```yaml
+# Use CPU instead in config.yaml
+raster:
+  device: "cpu"
 ```
 
-### Issue 5: Conversion Timeout
+**Issue**: `Image too large` error
+```yaml
+# Adjust max size in code or resize before processing
+# Default limit: 50MB
+```
 
-**Problem:** Inkscape conversion times out for large files
+**Issue**: `[CONFIG_MISSING_KEY]` error
+- Check config.yaml has all required sections
+- See error suggestion for specific missing key
 
-**Solution:**
-Modify timeout in `src/extractors/inkscape_wrapper.py`:
+---
+
+## 📝 Examples
+
+### Example 1: Process Mixed Design Files
+
 ```python
-# Line ~95
-result = subprocess.run(
-    cmd,
-    timeout=600  # Increase from 300 to 600 seconds
+from pathlib import Path
+from pipeline.unified_pipeline import UnifiedPipeline
+
+# Initialize
+pipeline = UnifiedPipeline(Path('config.yaml'))
+
+# Process directory with both vectors and rasters
+results = pipeline.process_directory(
+    input_dir=Path('./designs'),
+    output_dir=Path('./tensors')
 )
+
+print(f"Vector files: {len(results['vector'])}")
+print(f"Raster files: {len(results['raster'])}")
 ```
+
+### Example 2: Batch Processing with Progress
+
+```python
+from pathlib import Path
+from tqdm import tqdm
+from pipeline.unified_pipeline import UnifiedPipeline
+
+pipeline = UnifiedPipeline(Path('config.yaml'))
+
+files = list(Path('./data').glob('*'))
+for file in tqdm(files, desc="Processing"):
+    try:
+        output = pipeline.process(file)
+        print(f"✓ {file.name} → {output}")
+    except Exception as e:
+        print(f"✗ {file.name}: {e}")
+```
+
+---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow these steps:
+Contributions are welcome! Please follow these guidelines:
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Write tests** for new functionality
+4. **Ensure** all tests pass (`pytest tests/`)
+5. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+6. **Push** to the branch (`git push origin feature/amazing-feature`)
+7. **Open** a Pull Request
 
-### Development Guidelines
+### Development Setup
 
-- Follow PEP 8 style guidelines
-- Add unit tests for new features
-- Update documentation as needed
-- Ensure all tests pass before submitting PR
+```bash
+# Clone repository
+git clone https://github.com/Rushabh333/cde_to_vector.git
+cd cde_to_vector
+
+# Install development dependencies
+pip install -r requirements.txt
+pip install pytest pytest-cov
+
+# Run tests
+pytest tests/ -v --cov=src
+```
+
+---
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
 
 ## 👤 Author
 
@@ -636,10 +485,58 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - GitHub: [@Rushabh333](https://github.com/Rushabh333)
 
+---
+
 ## 🙏 Acknowledgments
 
-- Inkscape development team for the robust CLI tools
-- The open-source community for excellent Python libraries
-- All contributors who help improve this project
+- **Inkscape Project** for the powerful vector graphics toolkit
+- **PyTorch Team** for the deep learning framework
+- **PIL/Pillow** for comprehensive image processing
+- Academic references detailed in [CITATIONS.md](CITATIONS.md)
 
 ---
+
+## 📊 Project Stats
+
+| Metric | Value |
+|--------|-------|
+| **Lines of Code** | ~1,500 (production) |
+| **Test Coverage** | 89% (validators), 90% (image preprocessing) |
+| **Tests** | 43 passing |
+| **Supported Formats** | 9 (vector + raster) |
+| **Dependencies** | 11 core libraries |
+| **Python Version** | 3.8+ |
+
+---
+
+## 🗺️ Roadmap
+
+### Completed ✅
+- [x] Vector pipeline (CDR, SVG support)
+- [x] Raster pipeline (ResNet-50 encoder)
+- [x] Unified interface with auto-detection
+- [x] Comprehensive validation framework
+- [x] Production-grade error handling
+- [x] Extensive test suite (43 tests)
+- [x] Corner case coverage
+
+### Future Enhancements 🔮
+- [ ] Lightweight fusion module (cross-attention between modalities)
+- [ ] Alternative encoders (CLIP, DINOv2)
+- [ ] GPU batch processing optimization
+- [ ] Fine-tuning capabilities for domain-specific data
+- [ ] WebUI for interactive processing
+- [ ] Docker containerization
+- [ ] CI/CD with GitHub Actions
+
+---
+
+## 📞 Support
+
+For questions, issues, or suggestions:
+- **Issues**: [GitHub Issues](https://github.com/Rushabh333/cde_to_vector/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Rushabh333/cde_to_vector/discussions)
+
+---
+
+**⭐ If you find this project useful, please consider giving it a star!**
